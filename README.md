@@ -1,24 +1,24 @@
 # Dungeon
 
-Jogo de labirinto com perseguição em C++17 e SFML 2: um cavaleiro junta as moedas da masmorra fugindo de quatro monstros. As poções deixam os monstros vulneráveis.
+A maze-chase game in C++17 and SFML 2: a knight collects the coins of a dungeon while four monsters chase him. Potions make the monsters vulnerable.
 
-![Tela do jogo](docs/tela.png)
+![Screenshot](docs/screenshot.png)
 
-Setas movem, R recomeça depois do fim de jogo.
+Arrow keys move; R starts a new game after game over.
 
-## Compilar
+## Build
 
-Precisa de SFML 2, CMake e do repo [disciplina-de-jogos](https://github.com/baldoqui/disciplina-de-jogos) na mesma pasta.
+Needs SFML 2, CMake and the [disciplina-de-jogos](https://github.com/baldoqui/disciplina-de-jogos) repo in the same parent folder.
 
 ```sh
 cmake -S . -B build && cmake --build build
 ./build/dungeon
 ```
 
-## Referências
+## Credits
 
-- Arte: [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon), de Kenney, licença CC0 ([`assets/kenney/License.txt`](assets/kenney/License.txt)).
-- Fonte: [DejaVu Sans](https://dejavu-fonts.github.io/) ([licença](assets/DejaVuSans-LICENSE.txt)).
-- Biblioteca: [SFML](https://www.sfml-dev.org/).
+- Art: [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) by Kenney, CC0 ([`assets/kenney/License.txt`](assets/kenney/License.txt)).
+- Font: [DejaVu Sans](https://dejavu-fonts.github.io/) ([license](assets/DejaVuSans-LICENSE.txt)).
+- Library: [SFML](https://www.sfml-dev.org/).
 
-Código sob a [licença MIT](LICENSE).
+Code under the [MIT license](LICENSE).

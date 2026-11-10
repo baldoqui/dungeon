@@ -1,78 +1,78 @@
-// Dungeon: jogo de labirinto com perseguição.
+// Dungeon: a maze-chase game.
 //
-// Este arquivo só liga as regras (Jogo) à janela (Tela). As regras ficam em
-// Jogo.cpp, o movimento em Ator.cpp, os monstros em Monstros.cpp e o
-// labirinto em Labirinto.cpp.
+// This file only connects the rules (Game) to the window (Screen). The
+// rules live in Game.cpp, movement in Actor.cpp, the monsters in
+// Monsters.cpp and the maze in Maze.cpp.
 
 #include <algorithm>
 #include <iostream>
 
-#include "Jogo.hpp"
-#include "Tela.hpp"
+#include "Game.hpp"
+#include "Screen.hpp"
 
-// Arte: Tiny Dungeon, de Kenney (CC0); ver README.
-#define ARTE ASSETS_DIR "kenney/"
+// Art: Tiny Dungeon by Kenney (CC0); see README.
+#define ART ASSETS_DIR "kenney/"
 
 
 int main () {
 
-   Jogo jogo;
-   if (!jogo.prepara (ASSETS_DIR "labirinto.txt")) {
-      std::cerr << "Não consegui carregar labirinto.txt\n";
+   Game game;
+   if (!game.prepare (ASSETS_DIR "maze.txt")) {
+      std::cerr << "Could not load maze.txt\n";
       return 1;
    }
 
-   Tela tela (jogo.lab.mapa);
+   Screen screen (game.maze.map);
 
-   // Imagens. Os personagens são desenhados na ordem em que são
-   // adicionados: o herói por último, por cima dos monstros.
-   for (auto &m: jogo.monstros) {
-      m.ator.npc.sprite (ARTE + m.imagem);
-      tela.adiciona (&m.ator.npc);
+   // Images. Characters are drawn in the order they are added:
+   // the hero last, on top of the monsters.
+   for (auto &m: game.monsters) {
+      m.actor.npc.sprite (ART + m.image);
+      screen.add (&m.actor.npc);
    }
-   jogo.heroi.npc.sprite (ARTE "cavaleiro.png");
-   tela.adiciona (&jogo.heroi.npc);
+   game.hero.npc.sprite (ART "knight.png");
+   screen.add (&game.hero.npc);
 
-   // Monstro vulnerável vira fantasma.
-   sf::Texture fantasma;
-   if (!fantasma.loadFromFile (ARTE "fantasma.png")) {
-      std::cerr << "Não consegui carregar fantasma.png\n";
+   // A frightened monster turns into a ghost.
+   sf::Texture ghost;
+   if (!ghost.loadFromFile (ART "ghost.png")) {
+      std::cerr << "Could not load ghost.png\n";
       return 1;
    }
 
-   tela.imagemDaParede (ARTE "parede.png");
-   tela.imagemDoChao   (ARTE "chao.png");
-   tela.itens          (&jogo.lab.itens());
-   tela.corDoItem      (PONTINHO, sf::Color(255, 210, 90), 0.1f);   // moedinha
-   tela.imagemDoItem   (POCAO, ARTE "pocao.png");
+   screen.setWallImage  (ART "wall.png");
+   screen.setFloorImage (ART "floor.png");
+   screen.setItems      (&game.maze.items());
+   screen.setItemColor  (COIN, sf::Color(255, 210, 90), 0.1f);
+   screen.setItemImage  (POTION, ART "potion.png");
 
-   tela.aoApertarTecla ([&](sf::Keyboard::Key k) { jogo.tecla(k); });
+   screen.onKey ([&](sf::Keyboard::Key k) { game.key(k); });
 
-   tela.aoPassarQuadro ([&](float dt) {
-      // Um quadro muito longo (janela arrastada, primeiro quadro...) faria
-      // todo mundo pular vários tiles de uma vez.
-      jogo.atualiza (std::min(dt, 0.05f));
+   screen.onFrame ([&](float dt) {
+      // A very long frame (window dragged, first frame...) would make
+      // everyone jump several tiles at once.
+      game.update (std::min(dt, 0.05f));
 
-      for (auto &m: jogo.monstros)
-         m.ator.npc.m_sprite.setTexture (m.vulneravel ? fantasma : m.ator.npc.m_texture);
+      for (auto &m: game.monsters)
+         m.actor.npc.m_sprite.setTexture (m.frightened ? ghost : m.actor.npc.m_texture);
 
-      tela.textoDoPlacar (jogo.textoDoPlacar());
+      screen.setHudText (game.hudText());
 
-      // Barra = tempo que falta de poção.
-      tela.barraDoPlacar (jogo.tempoVulneravel > 0
-                          ? jogo.tempoVulneravel / jogo.duracaoDaPocao() : -1);
+      // Bar = potion time left.
+      screen.setHudBar (game.frightenedTime > 0
+                        ? game.frightenedTime / game.potionDuration() : -1);
    });
 
-   jogo.comecaJogo();
+   game.newGame();
 
-   // Espaço em cima do labirinto para o placar.
-   tela.margemSuperior (3.5f);
-   if (!tela.abre (900, 1000, "Dungeon"))
+   // Room above the maze for the HUD.
+   screen.setTopMargin (3.5f);
+   if (!screen.open (900, 1000, "Dungeon"))
       return 1;
 
-   if (!tela.fonteDoPlacar (ASSETS_DIR "DejaVuSans-Bold.ttf"))
-      std::cerr << "Não consegui carregar a fonte; o jogo segue sem placar.\n";
+   if (!screen.setHudFont (ASSETS_DIR "DejaVuSans-Bold.ttf"))
+      std::cerr << "Could not load the font; playing without a HUD.\n";
 
-   tela.roda();
+   screen.run();
    return 0;
 }
