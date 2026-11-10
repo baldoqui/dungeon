@@ -8,12 +8,33 @@
 #include <iostream>
 
 #include "Game.hpp"
+#include "Music.hpp"
 #include "Screen.hpp"
 
 // Art by Kenney (CC0); see README.
 #define TILES ASSETS_DIR "kenney/tiny-dungeon/"
 #define UI    ASSETS_DIR "kenney/pixel-ui/"
 #define FONTS ASSETS_DIR "kenney/fonts/"
+// Songs by Aureolus_Omicron (CC0); see README.
+#define SONGS ASSETS_DIR "music/"
+
+
+// Changes the music when the game moves from one stage to another.
+static void followStage (Music &music, Stage from, Stage to) {
+   if (to == PAUSED)  { music.setPaused(true); return; }
+   if (from == PAUSED) music.setPaused(false);
+
+   switch (to) {
+      case MENU:      if (from != MENU) music.menu(); break;
+      case CAUGHT:    music.caught(); break;
+      case GAME_OVER: music.gameOver(); break;
+      case READY:
+         if (from == MENU || from == GAME_OVER) music.game();   // a new game
+         else if (from == CAUGHT)               music.resume(); // next life
+         break;
+      default: break;
+   }
+}
 
 
 // What the menu says for the current stage.
@@ -77,8 +98,22 @@ int main () {
    screen.setItemColor  (COIN, sf::Color(255, 210, 90), 0.1f);
    screen.setItemImage  (POTION, TILES "potion.png");
 
+   Music music;
+   bool hasMusic = music.load (SONGS);
+   if (!hasMusic)
+      std::cerr << "Could not load the songs; playing without music.\n";
+
+   // Stage changes come from keys (menus) and from the game itself.
+   Stage lastStage = MENU;
+   auto followGame = [&]() {
+      if (hasMusic && game.stage != lastStage)
+         followStage(music, lastStage, game.stage);
+      lastStage = game.stage;
+   };
+
    screen.onKey ([&](sf::Keyboard::Key k) {
       game.key(k);
+      followGame();
       if (game.quitRequested)
          screen.close();
    });
@@ -87,6 +122,9 @@ int main () {
       // A very long frame (window dragged, first frame...) would make
       // everyone jump several tiles at once.
       game.update (std::min(dt, 0.05f));
+      followGame();
+      if (hasMusic)
+         music.setDanger (game.danger);
 
       for (auto &m: game.monsters)
          m.actor.npc.m_sprite.setTexture (m.frightened ? ghost : m.actor.npc.m_texture);
@@ -104,6 +142,8 @@ int main () {
    });
 
    game.showMenu();
+   if (hasMusic)
+      music.menu();
 
    if (!screen.open (900, 1000, "Dungeon"))
       return 1;

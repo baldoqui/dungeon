@@ -1,0 +1,13 @@
+These MIDI files come from "15 Melodic RPG Chiptunes" by Aureolus_Omicron,
+published on OpenGameArt under CC0 1.0 (public domain dedication):
+
+    https://opengameart.org/content/15-melodic-rpg-chiptunes
+    https://creativecommons.org/publicdomain/zero/1.0/
+
+Downloaded on 2026-11-09. Only the file names were changed:
+
+    title_screen.mid             <- rpgchip01_title_screen.mid
+    in_the_royal_court.mid       <- rpgchip04_in_the_royal_court.mid
+    dungeon.mid                  <- rpgchip06_dungeon.mid
+    fountain_of_the_fairies.mid  <- rpgchip10_fountain_of_the_fairies.mid
+    game_over.mid                <- rpgchip15_game_over.mid

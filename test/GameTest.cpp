@@ -151,6 +151,45 @@ TEST_F(GameTest, NoLivesEndsTheGameAndPlayAgainRestarts) {
 }
 
 
+// --- Danger (drives the music) ---------------------------------------------
+
+TEST_F(GameTest, DangerFollowsTheNearestMonster) {
+   lockMonsters();
+   Monster &brute = game.monsters[BRUTE];
+   brute.state = ROAMING;
+   brute.wait = 0;
+
+   // Far away, in the opposite corner.
+   game.hero.placeAt(Vector2D(1, 21));
+   brute.actor.placeAt(Vector2D(19, 1));
+   game.wanted = STOP;
+   game.update(FRAME);
+   EXPECT_EQ(game.danger, 0);
+
+   // Two steps away along the corridor.
+   brute.actor.placeAt(Vector2D(3, 21));
+   game.update(FRAME);
+   EXPECT_GT(game.danger, 0.9f);
+
+   // Frightened monsters are not a danger.
+   game.hero.placeAt(Vector2D(1, 1));   // on a potion
+   brute.actor.placeAt(Vector2D(3, 1));
+   game.update(FRAME);
+   EXPECT_TRUE(brute.frightened);
+   EXPECT_EQ(game.danger, 0);
+}
+
+TEST_F(GameTest, NoDangerOutsidePlaying) {
+   Monster &brute = game.monsters[BRUTE];
+   brute.actor.placeAt(game.hero.npc.body.position + Vector2D(2, 0));
+   game.update(FRAME);
+   game.key(sf::Keyboard::Escape);
+   game.update(FRAME);
+   EXPECT_EQ(game.stage, PAUSED);
+   EXPECT_EQ(game.danger, 0);
+}
+
+
 // --- Menus -----------------------------------------------------------------
 
 TEST_F(GameTest, TitleMenuPlaysOrQuits) {

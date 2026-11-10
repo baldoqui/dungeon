@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "Collision2D.hpp"
+#include "Global.hpp"
 
 
 //--------------------------------------------------------------
@@ -201,6 +202,9 @@ void Game::chooseMenuOption () {
 
 void Game::update (float dt) {
 
+   if (stage != PLAYING)
+      danger = 0;
+
    switch (stage) {
       case MENU:
       case PAUSED:
@@ -274,6 +278,29 @@ void Game::playFrame (float dt) {
       moveMonster(m, dt);
 
    checkEncounters();
+   updateDanger();
+}
+
+void Game::updateDanger () {
+
+   auto centre = [](int col, int row) {
+      return Vector2D((col + 0.5f) * TILE_SIZE, (row + 0.5f) * TILE_SIZE);
+   };
+
+   // Steps along the maze (A*), not a straight line: a monster behind a
+   // wall is not close.
+   int nearest = 1000;
+   for (auto &m: monsters) {
+      if (m.state != ROAMING || m.frightened)
+         continue;
+      auto path = pathFinder->findPath(centre(hero.col(), hero.row()),
+                                       centre(m.actor.col(), m.actor.row()));
+      if (!path.empty())
+         nearest = std::min(nearest, (int) path.size() - 1);
+   }
+
+   const float closeSteps = 2, farSteps = 10;
+   danger = std::clamp((farSteps - nearest) / (farSteps - closeSteps), 0.0f, 1.0f);
 }
 
 

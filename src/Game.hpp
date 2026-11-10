@@ -61,6 +61,11 @@ struct Game {
    float frightenedTime {0};         // > 0 while the potion lasts
    int   eatenThisPotion {0};        // for the doubling score
 
+   // How close the nearest dangerous monster is, from 0 (10 or more steps
+   // away along the maze) to 1 (2 steps or less). 0 outside PLAYING and for
+   // frightened monsters. Drives the music.
+   float danger {0};
+
    // Loads the maze and creates the A*. false if the file does not open.
    bool prepare (const std::string &mazeFile);
 
@@ -86,6 +91,7 @@ private:
    void moveMonster (Monster &m, float dt);
    void eatItem ();
    void checkEncounters ();
+   void updateDanger ();
    void updateTints ();
    float monsterSpeed () const;
 };
