@@ -128,7 +128,20 @@ void Game::startLife () {
 //--------------------------------------------------------------
 // Keyboard
 
+// WASD and Vim keys (H J K L) work as the arrows.
+static sf::Keyboard::Key asArrow (sf::Keyboard::Key k) {
+   switch (k) {
+      case sf::Keyboard::W: case sf::Keyboard::K: return sf::Keyboard::Up;
+      case sf::Keyboard::S: case sf::Keyboard::J: return sf::Keyboard::Down;
+      case sf::Keyboard::A: case sf::Keyboard::H: return sf::Keyboard::Left;
+      case sf::Keyboard::D: case sf::Keyboard::L: return sf::Keyboard::Right;
+      default: return k;
+   }
+}
+
 void Game::key (sf::Keyboard::Key k) {
+
+   k = asArrow(k);
 
    if (inMenu()) {
       int count = (int) menuActions().size();

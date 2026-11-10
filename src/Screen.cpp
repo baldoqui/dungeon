@@ -397,6 +397,6 @@ void Screen::drawMenu () {
       y += buttonH + gap;
    }
 
-   drawText(m_font, "ARROWS CHOOSE    ENTER CONFIRMS", 16, {w / 2, y + 12},
+   drawText(m_font, "ARROWS, WASD OR HJKL CHOOSE    ENTER CONFIRMS", 16, {w / 2, y + 12},
             CENTER_ALIGN, LABEL_COLOR);
 }

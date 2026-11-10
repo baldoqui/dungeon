@@ -4,7 +4,7 @@ A maze-chase game in C++17 and SFML 2: a knight collects the coins of a dungeon 
 
 ![Screenshot](docs/screenshot.png)
 
-Arrow keys move, Esc pauses, Enter picks a menu option. The music volume is set in the menus and saved in `~/.config/dungeon/settings.txt`.
+Arrow keys, WASD or Vim keys (HJKL) move, Esc pauses, Enter picks a menu option. The music volume is set in the menus and saved in `~/.config/dungeon/settings.txt`.
 
 ## Build
 

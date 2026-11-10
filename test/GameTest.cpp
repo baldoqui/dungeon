@@ -93,6 +93,33 @@ TEST_F(GameTest, HeroTurnsBackRightAway) {
    EXPECT_EQ(game.hero.dir, RIGHT);
 }
 
+TEST_F(GameTest, WasdAndVimKeysWorkAsArrows) {
+   const sf::Keyboard::Key keys[][3] = {
+      {sf::Keyboard::W, sf::Keyboard::K, sf::Keyboard::Up},
+      {sf::Keyboard::A, sf::Keyboard::H, sf::Keyboard::Left},
+      {sf::Keyboard::S, sf::Keyboard::J, sf::Keyboard::Down},
+      {sf::Keyboard::D, sf::Keyboard::L, sf::Keyboard::Right},
+   };
+   for (auto &k: keys) {
+      game.key(k[2]);
+      Direction arrow = game.wanted;
+      game.wanted = STOP;
+      game.key(k[0]);
+      EXPECT_EQ(game.wanted, arrow);
+      game.wanted = STOP;
+      game.key(k[1]);
+      EXPECT_EQ(game.wanted, arrow);
+   }
+
+   // Also in the menus.
+   game.showMenu();
+   game.key(sf::Keyboard::J);   // down to MUSIC
+   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_VOLUME);
+   int volume = game.musicVolume;
+   game.key(sf::Keyboard::A);
+   EXPECT_EQ(game.musicVolume, volume - 1);
+}
+
 TEST_F(GameTest, TunnelLeadsToTheOtherSide) {
    lockMonsters();
    game.hero.placeAt(Vector2D(1, 11));
