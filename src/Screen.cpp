@@ -1,8 +1,18 @@
 #include "Screen.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include "Global.hpp"
+
+
+// Height of the HUD strip at the top of the window, in pixels.
+static const float HUD_HEIGHT = 112;
+
+static const sf::Color TEXT_COLOR    (240, 228, 200);
+static const sf::Color LABEL_COLOR   (215, 190, 150);
+static const sf::Color SHADOW_COLOR  (40, 26, 20, 200);
+static const sf::Color DARK_TEXT     (70, 46, 30);
 
 
 // Stretches a sprite to cover exactly one tile.
@@ -13,14 +23,17 @@ static void fitToTile (sf::Sprite &sprite) {
    sprite.setScale(TILE_SIZE / t->getSize().x, TILE_SIZE / t->getSize().y);
 }
 
+// Pixel fonts look sharp only without smoothing (an SFML 2.6 option).
+static void makeSharp (sf::Font &font) {
+#if SFML_VERSION_MAJOR == 2 && SFML_VERSION_MINOR >= 6
+   font.setSmooth(false);
+#else
+   (void) font;
+#endif
+}
+
 
 Screen::Screen (const TileMap &map) : m_map(map) {}
-
-void Screen::setTopMargin (float tiles) {
-   m_topMargin = tiles;
-   if (m_window.isOpen())
-      fitCamera(m_window.getSize().x, m_window.getSize().y);
-}
 
 bool Screen::open (unsigned width, unsigned height, const std::string &title) {
    m_window.create(sf::VideoMode(width, height), title);
@@ -36,22 +49,20 @@ void Screen::fitCamera (unsigned width, unsigned height) {
 
    m_fixed = sf::View(sf::FloatRect(0, 0, (float) width, (float) height));
 
-   // Visible world: the whole map plus the top margin.
-   const float worldW = m_map.width() * TILE_SIZE;
-   const float worldH = (m_map.height() + m_topMargin) * TILE_SIZE;
-   m_camera = sf::View(sf::FloatRect(0, -m_topMargin * TILE_SIZE, worldW, worldH));
+   const float worldW = m_map.width()  * TILE_SIZE;
+   const float worldH = m_map.height() * TILE_SIZE;
+   m_camera = sf::View(sf::FloatRect(0, 0, worldW, worldH));
 
-   // Same proportions as the world, centred in the window.
-   const float windowRatio = (float) width / height;
-   const float worldRatio  = worldW / worldH;
+   // The maze gets the area under the HUD, keeping its proportions.
+   const float top   = std::min(HUD_HEIGHT, height * 0.5f) / height;
+   const float areaW = (float) width;
+   const float areaH = height * (1 - top);
 
-   if (windowRatio > worldRatio) {
-      float w = worldRatio / windowRatio;
-      m_camera.setViewport(sf::FloatRect((1 - w) / 2, 0, w, 1));
-   } else {
-      float h = windowRatio / worldRatio;
-      m_camera.setViewport(sf::FloatRect(0, (1 - h) / 2, 1, h));
-   }
+   const float scale = std::min(areaW / worldW, areaH / worldH);
+   const float w = worldW * scale / width;
+   const float h = worldH * scale / height;
+
+   m_camera.setViewport(sf::FloatRect((1 - w) / 2, top + ((1 - top) - h) / 2, w, h));
 }
 
 
@@ -85,19 +96,26 @@ bool Screen::setItemImage (int item, const std::string &file) {
    return s.hasImage;
 }
 
-bool Screen::setHudFont (const std::string &file) {
-   m_hasFont = m_font.loadFromFile(file);
-   if (m_hasFont) {
-      m_text.setFont(m_font);
-      m_text.setCharacterSize(28);
-      m_text.setFillColor(sf::Color::White);
-      m_text.setPosition(16, 10);
-   }
-   return m_hasFont;
+bool Screen::loadInterface (const std::string &folder, const std::string &textFont,
+                            const std::string &titleFont) {
+   m_hasInterface =
+      m_panel.loadFromFile(folder + "panel.png") &&
+      m_button.loadFromFile(folder + "button.png") &&
+      m_buttonSelected.loadFromFile(folder + "button_selected.png") &&
+      m_barBack.loadFromFile(folder + "bar_back.png") &&
+      m_barGreen.loadFromFile(folder + "bar_green.png") &&
+      m_barYellow.loadFromFile(folder + "bar_yellow.png") &&
+      m_barRed.loadFromFile(folder + "bar_red.png") &&
+      m_font.loadFromFile(textFont) &&
+      m_titleFont.loadFromFile(titleFont);
+
+   makeSharp(m_font);
+   makeSharp(m_titleFont);
+   return m_hasInterface;
 }
 
-void Screen::setHudText (const std::string &utf8Text) {
-   m_text.setString(sf::String::fromUtf8(utf8Text.begin(), utf8Text.end()));
+bool Screen::setLifeIcon (const std::string &file) {
+   return m_lifeIcon.loadFromFile(file);
 }
 
 
@@ -124,6 +142,9 @@ void Screen::run () {
       if (m_frame)
          m_frame(dt);
 
+      if (!m_window.isOpen())
+         break;
+
       m_window.clear(m_background);
 
       m_window.setView(m_camera);
@@ -132,7 +153,11 @@ void Screen::run () {
       drawCharacters();
 
       m_window.setView(m_fixed);
-      drawHud();
+      if (m_hasInterface) {
+         drawHud();
+         drawBanner();
+         drawMenu();
+      }
 
       m_window.display();
    }
@@ -140,7 +165,7 @@ void Screen::run () {
 
 
 //--------------------------------------------------------------
-// Drawing
+// Maze and characters
 
 void Screen::drawMaze () {
 
@@ -149,7 +174,7 @@ void Screen::drawMaze () {
    fitToTile(floor);
 
    sf::RectangleShape block(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-   block.setFillColor(m_wallColor);
+   block.setFillColor(sf::Color(120, 120, 130));
 
    for (int row = 0; row < m_map.height(); ++row)
       for (int col = 0; col < m_map.width(); ++col) {
@@ -211,39 +236,167 @@ void Screen::drawCharacters () {
    }
 }
 
+
+//--------------------------------------------------------------
+// Interface
+
+void Screen::drawPanel (const sf::Texture &texture, const sf::FloatRect &where,
+                        float border, float scale) {
+
+   const float sw = (float) texture.getSize().x;
+   const float sh = (float) texture.getSize().y;
+   const float d  = border * scale;
+
+   // Column and row edges, in the image and on the screen.
+   const float srcX[4] = {0, border, sw - border, sw};
+   const float srcY[4] = {0, border, sh - border, sh};
+   const float dstX[4] = {where.left, where.left + d,
+                          where.left + where.width - d, where.left + where.width};
+   const float dstY[4] = {where.top, where.top + d,
+                          where.top + where.height - d, where.top + where.height};
+
+   sf::Sprite piece(texture);
+   for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j) {
+         float srcW = srcX[i + 1] - srcX[i], srcH = srcY[j + 1] - srcY[j];
+         float dstW = dstX[i + 1] - dstX[i], dstH = dstY[j + 1] - dstY[j];
+         if (srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0)
+            continue;
+         piece.setTextureRect(sf::IntRect((int) srcX[i], (int) srcY[j], (int) srcW, (int) srcH));
+         piece.setPosition(dstX[i], dstY[j]);
+         piece.setScale(dstW / srcW, dstH / srcH);
+         m_window.draw(piece);
+      }
+}
+
+void Screen::drawText (const sf::Font &font, const std::string &text, unsigned size,
+                       sf::Vector2f where, Align align, sf::Color color) {
+
+   sf::Text t(sf::String::fromUtf8(text.begin(), text.end()), font, size);
+   sf::FloatRect b = t.getLocalBounds();
+
+   float x = where.x - b.left;
+   if (align == CENTER_ALIGN) x -= b.width / 2;
+   if (align == RIGHT_ALIGN)  x -= b.width;
+
+   // Whole pixels keep the pixel font sharp.
+   sf::Vector2f pos(std::round(x), std::round(where.y));
+
+   t.setFillColor(SHADOW_COLOR);
+   t.setPosition(pos + sf::Vector2f(2, 2));
+   m_window.draw(t);
+
+   t.setFillColor(color);
+   t.setPosition(pos);
+   m_window.draw(t);
+}
+
 void Screen::drawHud () {
 
-   if (!m_hasFont)
+   const float windowW = (float) m_window.getSize().x;
+   const float h = std::min(HUD_HEIGHT, m_window.getSize().y * 0.5f);
+
+   // Same width as the maze (but never too narrow for the four columns).
+   const sf::FloatRect vp = m_camera.getViewport();
+   const float w    = std::min(windowW - 16, std::max(vp.width * windowW, 560.0f));
+   const float left = (windowW - w) / 2;
+
+   drawPanel(m_panel, sf::FloatRect(left, 8, w, h - 16), 8, 2);
+
+   // Four columns: score, high score, level, lives.
+   const float column = w / 4;
+   auto centre = [&](int i) { return left + column * (i + 0.5f); };
+
+   drawText(m_font, "SCORE",      16, {centre(0), 20}, CENTER_ALIGN, LABEL_COLOR);
+   drawText(m_font, "HIGH SCORE", 16, {centre(1), 20}, CENTER_ALIGN, LABEL_COLOR);
+   drawText(m_font, "LEVEL",      16, {centre(2), 20}, CENTER_ALIGN, LABEL_COLOR);
+   drawText(m_font, "LIVES",      16, {centre(3), 20}, CENTER_ALIGN, LABEL_COLOR);
+
+   drawText(m_font, std::to_string(m_hud.score),     32, {centre(0), 42}, CENTER_ALIGN, TEXT_COLOR);
+   drawText(m_font, std::to_string(m_hud.highScore), 32, {centre(1), 42}, CENTER_ALIGN, TEXT_COLOR);
+   drawText(m_font, std::to_string(m_hud.level),     32, {centre(2), 42}, CENTER_ALIGN, TEXT_COLOR);
+
+   // Lives as small knights.
+   if (m_lifeIcon.getSize().x > 0) {
+      const float icon = 32, gap = 4;
+      float total = m_hud.lives * icon + std::max(0, m_hud.lives - 1) * gap;
+      float x = centre(3) - total / 2;
+      sf::Sprite s(m_lifeIcon);
+      s.setScale(icon / m_lifeIcon.getSize().x, icon / m_lifeIcon.getSize().y);
+      for (int i = 0; i < m_hud.lives; ++i) {
+         s.setPosition(std::round(x + i * (icon + gap)), 42);
+         m_window.draw(s);
+      }
+   }
+
+   // Potion bar along the bottom of the panel, while a potion lasts.
+   if (m_hud.bar >= 0) {
+      const float barW = std::min(360.0f, w * 0.5f), barH = 20;
+      sf::FloatRect back(left + (w - barW) / 2, h - 34, barW, barH);
+      drawPanel(m_barBack, back, 6, 1);
+
+      float f = std::min(m_hud.bar, 1.0f);
+      const sf::Texture &fill = f > 0.5f ? m_barGreen : f > 0.25f ? m_barYellow : m_barRed;
+      float fillW = (barW - 8) * f;
+      if (fillW >= 12)
+         drawPanel(fill, sf::FloatRect(back.left + 4, back.top + 4, fillW, barH - 8), 4, 1);
+   }
+}
+
+void Screen::drawBanner () {
+
+   if (m_hud.banner.empty() || m_menu.visible)
       return;
 
-   const float barW = 240, barH = 16, gap = 10;
-   const bool  hasBar = m_bar >= 0;
+   // Centre of the maze on the window.
+   const sf::FloatRect vp = m_camera.getViewport();
+   const sf::Vector2u size = m_window.getSize();
+   const float cx = (vp.left + vp.width / 2) * size.x;
+   const float cy = (vp.top + vp.height / 2) * size.y;
 
-   sf::FloatRect t = m_text.getGlobalBounds();
-   float w = hasBar ? std::max(t.width, barW) : t.width;
-   float h = t.height + (hasBar ? gap + barH : 0);
+   sf::Text measure(m_hud.banner, m_font, 40);
+   float tw = measure.getLocalBounds().width;
 
-   sf::RectangleShape panel(sf::Vector2f(w + 24, h + 20));
-   panel.setPosition(t.left - 12, t.top - 10);
-   panel.setFillColor(sf::Color(0, 0, 0, 170));
-   m_window.draw(panel);
-   m_window.draw(m_text);
+   sf::FloatRect panel(cx - tw / 2 - 32, cy - 36, tw + 64, 72);
+   drawPanel(m_panel, panel, 8, 2);
+   drawText(m_font, m_hud.banner, 40, {cx, cy - 20}, CENTER_ALIGN, TEXT_COLOR);
+}
 
-   if (!hasBar)
+void Screen::drawMenu () {
+
+   if (!m_menu.visible)
       return;
 
-   float top = t.top + t.height + gap;
+   const sf::Vector2u size = m_window.getSize();
+   const float w = (float) size.x, h = (float) size.y;
 
-   sf::RectangleShape empty(sf::Vector2f(barW, barH));
-   empty.setPosition(t.left, top);
-   empty.setFillColor(sf::Color(70, 70, 70));
-   m_window.draw(empty);
+   // Darken the game behind the menu.
+   sf::RectangleShape shade(sf::Vector2f(w, h));
+   shade.setFillColor(sf::Color(10, 6, 12, 170));
+   m_window.draw(shade);
 
-   float fraction = std::min(m_bar, 1.0f);
-   sf::RectangleShape full(sf::Vector2f(barW * fraction, barH));
-   full.setPosition(t.left, top);
-   full.setFillColor(fraction > 0.5f  ? sf::Color(60, 200, 80)
-                   : fraction > 0.25f ? sf::Color(240, 200, 40)
-                                      : sf::Color(220, 60, 50));
-   m_window.draw(full);
+   const float buttonW = 320, buttonH = 56, gap = 16;
+   const float panelW = std::min(w - 32, 560.0f);
+   const float panelH = 40 + 80 + 48 + m_menu.options.size() * (buttonH + gap) + 56;
+   const float left = (w - panelW) / 2, top = (h - panelH) / 2;
+
+   drawPanel(m_panel, sf::FloatRect(left, top, panelW, panelH), 8, 3);
+
+   float y = top + 36;
+   drawText(m_titleFont, m_menu.title, 64, {w / 2, y}, CENTER_ALIGN, TEXT_COLOR);
+   y += 80;
+   drawText(m_font, m_menu.subtitle, 20, {w / 2, y}, CENTER_ALIGN, LABEL_COLOR);
+   y += 48;
+
+   for (size_t i = 0; i < m_menu.options.size(); ++i) {
+      bool chosen = (int) i == m_menu.selected;
+      sf::FloatRect button((w - buttonW) / 2, y, buttonW, buttonH);
+      drawPanel(chosen ? m_buttonSelected : m_button, button, 8, 2);
+      drawText(m_font, m_menu.options[i], 28, {w / 2, y + 12}, CENTER_ALIGN,
+               chosen ? DARK_TEXT : TEXT_COLOR);
+      y += buttonH + gap;
+   }
+
+   drawText(m_font, "ARROWS CHOOSE    ENTER CONFIRMS", 16, {w / 2, y + 12},
+            CENTER_ALIGN, LABEL_COLOR);
 }

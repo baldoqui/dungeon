@@ -69,10 +69,20 @@ bool Game::prepare (const std::string &mazeFile) {
    return true;
 }
 
+void Game::showMenu () {
+   // A fresh maze behind the menu, with everyone in place.
+   maze.resetItems();
+   lives = STARTING_LIVES;
+   startLife();
+   stage = MENU;
+   menuChoice = 0;
+}
+
 void Game::newGame () {
    score = 0;
    lives = STARTING_LIVES;
    level = 1;
+   menuChoice = 0;
    maze.resetItems();
    startLife();
 }
@@ -118,14 +128,67 @@ void Game::startLife () {
 // Keyboard
 
 void Game::key (sf::Keyboard::Key k) {
+
+   if (inMenu()) {
+      int count = (int) menuOptions().size();
+      switch (k) {
+         case sf::Keyboard::Up:    menuChoice = (menuChoice + count - 1) % count; break;
+         case sf::Keyboard::Down:  menuChoice = (menuChoice + 1) % count; break;
+         case sf::Keyboard::Enter:
+         case sf::Keyboard::Space: chooseMenuOption(); break;
+         case sf::Keyboard::Escape:
+            if (stage == PAUSED)
+               stage = pausedFrom;
+            break;
+         default: break;
+      }
+      return;
+   }
+
    switch (k) {
       case sf::Keyboard::Left:  wanted = LEFT;  break;
       case sf::Keyboard::Right: wanted = RIGHT; break;
       case sf::Keyboard::Up:    wanted = UP;    break;
       case sf::Keyboard::Down:  wanted = DOWN;  break;
-      case sf::Keyboard::R:
-         if (stage == GAME_OVER)
-            newGame();
+      case sf::Keyboard::Escape:
+         pausedFrom = stage;
+         stage = PAUSED;
+         menuChoice = 0;
+         break;
+      default:
+         break;
+   }
+}
+
+bool Game::inMenu () const {
+   return stage == MENU || stage == PAUSED || stage == GAME_OVER;
+}
+
+std::vector<std::string> Game::menuOptions () const {
+   switch (stage) {
+      case MENU:      return {"PLAY", "QUIT"};
+      case PAUSED:    return {"RESUME", "MAIN MENU"};
+      case GAME_OVER: return {"PLAY AGAIN", "MAIN MENU"};
+      default:        return {};
+   }
+}
+
+void Game::chooseMenuOption () {
+   bool first = menuChoice == 0;
+   menuChoice = 0;
+
+   switch (stage) {
+      case MENU:
+         if (first) newGame();
+         else       quitRequested = true;
+         break;
+      case PAUSED:
+         if (first) stage = pausedFrom;
+         else       showMenu();
+         break;
+      case GAME_OVER:
+         if (first) newGame();
+         else       showMenu();
          break;
       default:
          break;
@@ -139,6 +202,10 @@ void Game::key (sf::Keyboard::Key k) {
 void Game::update (float dt) {
 
    switch (stage) {
+      case MENU:
+      case PAUSED:
+         break;
+
       case READY:
          pause -= dt;
          if (pause <= 0)
@@ -152,10 +219,12 @@ void Game::update (float dt) {
       case CAUGHT:
          pause -= dt;
          if (pause <= 0) {
-            if (lives <= 0)
+            if (lives <= 0) {
                stage = GAME_OVER;
-            else
+               menuChoice = 0;
+            } else {
                startLife();
+            }
          }
          break;
 
@@ -370,19 +439,11 @@ void Game::updateTints () {
    }
 }
 
-std::string Game::hudText () const {
-
-   std::string text = "Score: " + std::to_string(score) +
-                      "    High score: " + std::to_string(highScore) +
-                      "\nLevel: " + std::to_string(level) +
-                      "    Lives: " + std::to_string(lives);
-
+std::string Game::banner () const {
    switch (stage) {
-      case READY:       text += "\nGet ready..."; break;
-      case CAUGHT:      text += "\nCaught!"; break;
-      case LEVEL_CLEAR: text += "\nLevel clear!"; break;
-      case GAME_OVER:   text += "\nGame over! Press R to play again"; break;
-      case PLAYING:     break;
+      case READY:       return level == 1 ? "GET READY" : "LEVEL " + std::to_string(level);
+      case CAUGHT:      return "CAUGHT!";
+      case LEVEL_CLEAR: return "LEVEL CLEAR!";
+      default:          return "";
    }
-   return text;
 }

@@ -133,17 +133,72 @@ TEST_F(GameTest, MonsterCatchesHeroAndTakesALife) {
    EXPECT_EQ(game.stage, READY);
 }
 
-TEST_F(GameTest, NoLivesEndsTheGameAndRRestarts) {
+TEST_F(GameTest, NoLivesEndsTheGameAndPlayAgainRestarts) {
    game.lives = 1;
+   game.score = 500;
    game.monsters[BRUTE].actor.placeAt(game.hero.npc.body.position);
    game.update(FRAME);
    run(2.0f);
    EXPECT_EQ(game.stage, GAME_OVER);
+   EXPECT_TRUE(game.inMenu());
+   EXPECT_EQ(game.menuOptions()[0], "PLAY AGAIN");
 
-   game.key(sf::Keyboard::R);
+   game.key(sf::Keyboard::Enter);
    EXPECT_EQ(game.lives, 3);
    EXPECT_EQ(game.score, 0);
+   EXPECT_EQ(game.highScore, 500);
    EXPECT_EQ(game.stage, READY);
+}
+
+
+// --- Menus -----------------------------------------------------------------
+
+TEST_F(GameTest, TitleMenuPlaysOrQuits) {
+   game.showMenu();
+   EXPECT_EQ(game.stage, MENU);
+   run(1.0f);   // nothing moves behind the menu
+   EXPECT_EQ(game.stage, MENU);
+
+   game.key(sf::Keyboard::Down);
+   game.key(sf::Keyboard::Enter);
+   EXPECT_TRUE(game.quitRequested);
+
+   // After a choice the selection goes back to the first option, PLAY.
+   game.quitRequested = false;
+   EXPECT_EQ(game.menuChoice, 0);
+   game.key(sf::Keyboard::Up);     // wraps around to QUIT...
+   game.key(sf::Keyboard::Down);   // ...and back to PLAY
+   game.key(sf::Keyboard::Enter);
+   EXPECT_EQ(game.stage, READY);
+   EXPECT_FALSE(game.quitRequested);
+}
+
+TEST_F(GameTest, EscPausesAndResumes) {
+   lockMonsters();
+   run(0.2f);
+   Vector2D before = game.hero.npc.body.position;
+
+   game.key(sf::Keyboard::Escape);
+   EXPECT_EQ(game.stage, PAUSED);
+   run(1.0f);
+   EXPECT_EQ(game.hero.npc.body.position.x, before.x);
+
+   // Arrows choose menu options while paused, not the hero's direction.
+   game.key(sf::Keyboard::Down);
+   EXPECT_EQ(game.menuChoice, 1);
+   game.key(sf::Keyboard::Up);
+   game.key(sf::Keyboard::Enter);
+   EXPECT_EQ(game.stage, PLAYING);
+   EXPECT_EQ(game.hero.dir, LEFT);
+}
+
+TEST_F(GameTest, PauseMenuCanGoBackToTitle) {
+   game.score = 120;
+   game.key(sf::Keyboard::Escape);
+   game.key(sf::Keyboard::Down);
+   game.key(sf::Keyboard::Enter);
+   EXPECT_EQ(game.stage, MENU);
+   EXPECT_EQ(game.highScore, 0);   // high score is only updated while playing
 }
 
 TEST_F(GameTest, MonstersLeaveThePen) {

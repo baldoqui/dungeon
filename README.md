@@ -4,7 +4,7 @@ A maze-chase game in C++17 and SFML 2: a knight collects the coins of a dungeon 
 
 ![Screenshot](docs/screenshot.png)
 
-Arrow keys move; R starts a new game after game over.
+Arrow keys move, Esc pauses, Enter picks a menu option.
 
 ## Build
 
@@ -17,8 +17,10 @@ cmake -S . -B build && cmake --build build
 
 ## Credits
 
-- Art: [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) by Kenney, CC0 ([`assets/kenney/License.txt`](assets/kenney/License.txt)).
-- Font: [DejaVu Sans](https://dejavu-fonts.github.io/) ([license](assets/DejaVuSans-LICENSE.txt)).
-- Library: [SFML](https://www.sfml-dev.org/).
+All art and fonts are by [Kenney](https://kenney.nl), under CC0:
 
-Code under the [MIT license](LICENSE).
+- [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon): maze, characters, potion ([license](assets/kenney/tiny-dungeon/License.txt)).
+- [Pixel UI Pack](https://kenney.nl/assets/pixel-ui-pack): HUD and menu panels ([license](assets/kenney/pixel-ui/License.txt)).
+- [Kenney Fonts](https://kenney.nl/assets/kenney-fonts): text and title fonts ([license](assets/kenney/fonts/License.txt)).
+
+Built with [SFML](https://www.sfml-dev.org/). Code under the [MIT license](LICENSE).
