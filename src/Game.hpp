@@ -19,9 +19,10 @@
  * Score: coin 10, potion 50, frightened monster 200, 400, 800, 1600
  * (doubling for each monster eaten on the same potion).
  *
- * Menus: the title menu (PLAY / QUIT), Esc during a game (RESUME /
- * MAIN MENU) and game over (PLAY AGAIN / MAIN MENU). Up and Down pick an
- * option, Enter or Space confirms it.
+ * Menus: the title menu (PLAY / MUSIC / QUIT), Esc during a game (RESUME /
+ * MUSIC / MAIN MENU) and game over (PLAY AGAIN / MAIN MENU). Up and Down
+ * pick an option, Enter or Space confirms it; on MUSIC, Left and Right
+ * change the volume and Enter steps it up.
  */
 
 enum Stage {
@@ -35,6 +36,10 @@ enum Stage {
 };
 
 const int MONSTER_COUNT = 4;
+const int MAX_VOLUME = 10;           // music volume steps (10 = 100%)
+
+// What a menu option does.
+enum MenuAction { START_GAME, RESUME_GAME, CHANGE_VOLUME, BACK_TO_TITLE, QUIT_GAME };
 
 struct Game {
    Maze maze;
@@ -50,6 +55,7 @@ struct Game {
 
    int  menuChoice {0};              // selected option in the current menu
    bool quitRequested {false};       // "QUIT" chosen in the title menu
+   int  musicVolume {8};             // 0..MAX_VOLUME, changed in the menus
 
    int score     {0};
    int highScore {0};
@@ -76,7 +82,8 @@ struct Game {
 
    // Menu shown now: empty when there is none.
    bool inMenu () const;
-   std::vector<std::string> menuOptions () const;
+   std::vector<MenuAction>  menuActions () const;
+   std::vector<std::string> menuOptions () const;   // labels, same order
 
    // Short message over the maze ("GET READY"...); empty when there is none.
    std::string banner () const;

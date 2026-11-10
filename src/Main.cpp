@@ -5,6 +5,9 @@
 // Monsters.cpp and the maze in Maze.cpp.
 
 #include <algorithm>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 
 #include "Game.hpp"
@@ -37,12 +40,42 @@ static void followStage (Music &music, Stage from, Stage to) {
 }
 
 
+// Settings file: ~/.config/dungeon/settings.txt (or under $XDG_CONFIG_HOME).
+static std::filesystem::path settingsFile () {
+   const char *xdg  = std::getenv("XDG_CONFIG_HOME");
+   const char *home = std::getenv("HOME");
+   std::filesystem::path base = xdg && *xdg ? xdg : std::string(home ? home : ".") + "/.config";
+   return base / "dungeon" / "settings.txt";
+}
+
+static void loadSettings (Game &game) {
+   std::ifstream in(settingsFile());
+   std::string key;
+   int value;
+   while (in >> key >> value)
+      if (key == "music_volume")
+         game.musicVolume = std::clamp(value, 0, MAX_VOLUME);
+}
+
+static void saveSettings (const Game &game) {
+   std::error_code ignored;
+   std::filesystem::create_directories(settingsFile().parent_path(), ignored);
+   std::ofstream out(settingsFile());
+   out << "music_volume " << game.musicVolume << "\n";
+}
+
+
 // What the menu says for the current stage.
 static Screen::Menu menuFor (const Game &game) {
    Screen::Menu menu;
    menu.visible  = game.inMenu();
    menu.options  = game.menuOptions();
    menu.selected = game.menuChoice;
+
+   // Arrows around the volume while it is selected: Left/Right change it.
+   auto actions = game.menuActions();
+   if (menu.selected < (int) actions.size() && actions[menu.selected] == CHANGE_VOLUME)
+      menu.options[menu.selected] = "< " + menu.options[menu.selected] + " >";
 
    switch (game.stage) {
       case MENU:
@@ -98,10 +131,23 @@ int main () {
    screen.setItemColor  (COIN, sf::Color(255, 210, 90), 0.1f);
    screen.setItemImage  (POTION, TILES "potion.png");
 
+   loadSettings (game);
+
    Music music;
    bool hasMusic = music.load (SONGS);
    if (!hasMusic)
       std::cerr << "Could not load the songs; playing without music.\n";
+
+   // Volume from the menus: applied right away, saved for next time.
+   int appliedVolume = game.musicVolume;
+   music.setVolume ((float) game.musicVolume / MAX_VOLUME);
+   auto followVolume = [&]() {
+      if (game.musicVolume == appliedVolume)
+         return;
+      appliedVolume = game.musicVolume;
+      music.setVolume ((float) game.musicVolume / MAX_VOLUME);
+      saveSettings (game);
+   };
 
    // Stage changes come from keys (menus) and from the game itself.
    Stage lastStage = MENU;
@@ -114,6 +160,7 @@ int main () {
    screen.onKey ([&](sf::Keyboard::Key k) {
       game.key(k);
       followGame();
+      followVolume();
       if (game.quitRequested)
          screen.close();
    });

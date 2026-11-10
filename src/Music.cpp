@@ -56,6 +56,11 @@ void Music::setDanger (float danger) {
       m_synth.setIntensity(danger);
 }
 
+void Music::setVolume (float volume) {
+   // SFML volume is a percentage; no lock needed, it goes to OpenAL directly.
+   sf::SoundStream::setVolume(100 * volume);
+}
+
 void Music::setPaused (bool paused) {
    std::lock_guard<std::mutex> guard(m_lock);
    m_synth.setMuffled(paused);

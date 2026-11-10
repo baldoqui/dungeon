@@ -131,10 +131,17 @@ void Game::startLife () {
 void Game::key (sf::Keyboard::Key k) {
 
    if (inMenu()) {
-      int count = (int) menuOptions().size();
+      int count = (int) menuActions().size();
+      bool onVolume = menuActions()[menuChoice] == CHANGE_VOLUME;
       switch (k) {
          case sf::Keyboard::Up:    menuChoice = (menuChoice + count - 1) % count; break;
          case sf::Keyboard::Down:  menuChoice = (menuChoice + 1) % count; break;
+         case sf::Keyboard::Left:
+            if (onVolume) musicVolume = std::max(0, musicVolume - 1);
+            break;
+         case sf::Keyboard::Right:
+            if (onVolume) musicVolume = std::min(MAX_VOLUME, musicVolume + 1);
+            break;
          case sf::Keyboard::Enter:
          case sf::Keyboard::Space: chooseMenuOption(); break;
          case sf::Keyboard::Escape:
@@ -165,34 +172,45 @@ bool Game::inMenu () const {
    return stage == MENU || stage == PAUSED || stage == GAME_OVER;
 }
 
-std::vector<std::string> Game::menuOptions () const {
+std::vector<MenuAction> Game::menuActions () const {
    switch (stage) {
-      case MENU:      return {"PLAY", "QUIT"};
-      case PAUSED:    return {"RESUME", "MAIN MENU"};
-      case GAME_OVER: return {"PLAY AGAIN", "MAIN MENU"};
+      case MENU:      return {START_GAME, CHANGE_VOLUME, QUIT_GAME};
+      case PAUSED:    return {RESUME_GAME, CHANGE_VOLUME, BACK_TO_TITLE};
+      case GAME_OVER: return {START_GAME, BACK_TO_TITLE};
       default:        return {};
    }
 }
 
-void Game::chooseMenuOption () {
-   bool first = menuChoice == 0;
-   menuChoice = 0;
+std::vector<std::string> Game::menuOptions () const {
+   std::vector<std::string> labels;
+   for (MenuAction a: menuActions())
+      switch (a) {
+         case START_GAME:    labels.push_back(stage == GAME_OVER ? "PLAY AGAIN" : "PLAY"); break;
+         case RESUME_GAME:   labels.push_back("RESUME"); break;
+         case CHANGE_VOLUME: labels.push_back("MUSIC " + std::to_string(musicVolume * 10) + "%"); break;
+         case BACK_TO_TITLE: labels.push_back("MAIN MENU"); break;
+         case QUIT_GAME:     labels.push_back("QUIT"); break;
+      }
+   return labels;
+}
 
-   switch (stage) {
-      case MENU:
-         if (first) newGame();
-         else       quitRequested = true;
-         break;
-      case PAUSED:
-         if (first) stage = pausedFrom;
-         else       showMenu();
-         break;
-      case GAME_OVER:
-         if (first) newGame();
-         else       showMenu();
-         break;
-      default:
-         break;
+void Game::chooseMenuOption () {
+
+   MenuAction action = menuActions()[menuChoice];
+
+   // Enter on the volume steps it up (and around), keeping the selection.
+   if (action == CHANGE_VOLUME) {
+      musicVolume = (musicVolume + 1) % (MAX_VOLUME + 1);
+      return;
+   }
+
+   menuChoice = 0;
+   switch (action) {
+      case START_GAME:    newGame(); break;
+      case RESUME_GAME:   stage = pausedFrom; break;
+      case BACK_TO_TITLE: showMenu(); break;
+      case QUIT_GAME:     quitRequested = true; break;
+      case CHANGE_VOLUME: break;
    }
 }
 

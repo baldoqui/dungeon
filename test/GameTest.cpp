@@ -195,21 +195,44 @@ TEST_F(GameTest, NoDangerOutsidePlaying) {
 TEST_F(GameTest, TitleMenuPlaysOrQuits) {
    game.showMenu();
    EXPECT_EQ(game.stage, MENU);
+   ASSERT_EQ(game.menuOptions().size(), 3u);
    run(1.0f);   // nothing moves behind the menu
    EXPECT_EQ(game.stage, MENU);
 
-   game.key(sf::Keyboard::Down);
+   game.key(sf::Keyboard::Up);     // wraps around to QUIT
    game.key(sf::Keyboard::Enter);
    EXPECT_TRUE(game.quitRequested);
 
    // After a choice the selection goes back to the first option, PLAY.
    game.quitRequested = false;
    EXPECT_EQ(game.menuChoice, 0);
-   game.key(sf::Keyboard::Up);     // wraps around to QUIT...
-   game.key(sf::Keyboard::Down);   // ...and back to PLAY
    game.key(sf::Keyboard::Enter);
    EXPECT_EQ(game.stage, READY);
    EXPECT_FALSE(game.quitRequested);
+}
+
+TEST_F(GameTest, MusicVolumeChangesInTheMenu) {
+   game.showMenu();
+   game.musicVolume = 8;
+   game.key(sf::Keyboard::Down);   // MUSIC
+   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_VOLUME);
+   EXPECT_EQ(game.menuOptions()[game.menuChoice], "MUSIC 80%");
+
+   game.key(sf::Keyboard::Left);
+   EXPECT_EQ(game.musicVolume, 7);
+   for (int i = 0; i < 20; ++i) game.key(sf::Keyboard::Right);
+   EXPECT_EQ(game.musicVolume, 10);   // stops at 100%
+
+   // Enter steps it up and wraps around, without leaving the option.
+   game.key(sf::Keyboard::Enter);
+   EXPECT_EQ(game.musicVolume, 0);
+   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_VOLUME);
+   EXPECT_EQ(game.stage, MENU);
+
+   // Left/Right do nothing on other options.
+   game.key(sf::Keyboard::Up);   // PLAY
+   game.key(sf::Keyboard::Right);
+   EXPECT_EQ(game.musicVolume, 0);
 }
 
 TEST_F(GameTest, EscPausesAndResumes) {
@@ -234,7 +257,8 @@ TEST_F(GameTest, EscPausesAndResumes) {
 TEST_F(GameTest, PauseMenuCanGoBackToTitle) {
    game.score = 120;
    game.key(sf::Keyboard::Escape);
-   game.key(sf::Keyboard::Down);
+   EXPECT_EQ(game.menuOptions()[2], "MAIN MENU");
+   game.key(sf::Keyboard::Up);   // wraps around to MAIN MENU
    game.key(sf::Keyboard::Enter);
    EXPECT_EQ(game.stage, MENU);
    EXPECT_EQ(game.highScore, 0);   // high score is only updated while playing

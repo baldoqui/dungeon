@@ -33,6 +33,7 @@ public:
    void gameOver ();
 
    void setDanger (float danger);
+   void setVolume (float volume);   // 0..1
    void setPaused (bool paused);
    void caught ();      // tape stop
    void resume ();      // after being caught
