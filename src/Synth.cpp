@@ -231,6 +231,82 @@ float Synth::drumSample (double dt) {
    return sum;
 }
 
+//--------------------------------------------------------------
+// Sound effects
+
+// Note frequencies used below.
+static const float C5 = 523.25f, E5 = 659.26f, G5 = 783.99f,
+                   C6 = 1046.5f, E6 = 1318.5f, G6 = 1568.0f;
+
+static const std::vector<Synth::Slide> &slidesFor (SoundEffect e) {
+   using S = Synth::Slide;
+   static const std::vector<S> coin    {{1320, 1760, 0.035f, Synth::TRIANGLE, 0.35f}};
+   static const std::vector<S> potion  {{C5, C5, 0.06f, Synth::SQUARE, 0.22f},
+                                        {E5, E5, 0.06f, Synth::SQUARE, 0.22f},
+                                        {G5, G5, 0.06f, Synth::SQUARE, 0.22f},
+                                        {C6, C6, 0.12f, Synth::SQUARE, 0.22f}};
+   static const std::vector<S> monster {{300, 1300, 0.25f, Synth::THIN_PULSE, 0.25f}};
+   static const std::vector<S> caught  {{700, 90, 0.9f, Synth::SQUARE, 0.25f}};
+   static const std::vector<S> level   {{G5, G5, 0.08f, Synth::SQUARE, 0.22f},
+                                        {C6, C6, 0.08f, Synth::SQUARE, 0.22f},
+                                        {E6, E6, 0.08f, Synth::SQUARE, 0.22f},
+                                        {G6, G6, 0.30f, Synth::SQUARE, 0.22f}};
+   static const std::vector<S> move    {{880, 880, 0.03f, Synth::SQUARE, 0.12f}};
+   static const std::vector<S> choose  {{660, 660, 0.05f, Synth::SQUARE, 0.18f},
+                                        {990, 990, 0.08f, Synth::SQUARE, 0.18f}};
+   switch (e) {
+      case SFX_COIN:        return coin;
+      case SFX_POTION:      return potion;
+      case SFX_MONSTER:     return monster;
+      case SFX_CAUGHT:      return caught;
+      case SFX_LEVEL:       return level;
+      case SFX_MENU_MOVE:   return move;
+      case SFX_MENU_CHOOSE: return choose;
+   }
+   return move;
+}
+
+void Synth::playEffect (SoundEffect effect) {
+   if (m_effects.size() >= 8)
+      m_effects.erase(m_effects.begin());
+   m_effects.push_back({&slidesFor(effect)});
+}
+
+float Synth::effectsSample (double dt) {
+   float sum = 0;
+   for (auto &e: m_effects) {
+      const Slide &s = (*e.slides)[e.index];
+
+      double f = s.from + (s.to - s.from) * (e.time / s.length);
+      e.phase += f * dt;
+      e.phase -= std::floor(e.phase);
+
+      float w;
+      switch (s.wave) {
+         case TRIANGLE:   w = (float) (1 - 4 * std::abs(e.phase - 0.5)); break;
+         case THIN_PULSE: w = e.phase < 0.25 ? 1.0f : -1.0f; break;
+         default:         w = e.phase < 0.5  ? 1.0f : -1.0f; break;
+      }
+      // 2 ms fade in and 8 ms fade out, so slides do not click.
+      double envelope = std::min({1.0, e.time / 0.002, (s.length - e.time) / 0.008});
+      sum += w * (float) std::max(0.0, envelope) * s.gain;
+
+      e.time += dt;
+      if (e.time >= s.length) {
+         e.time = 0;
+         ++e.index;
+      }
+   }
+   m_effects.erase(std::remove_if(m_effects.begin(), m_effects.end(),
+                                  [](const Effect &e) { return e.index >= e.slides->size(); }),
+                   m_effects.end());
+   return sum;
+}
+
+
+//--------------------------------------------------------------
+// Output
+
 void Synth::render (std::int16_t *out, std::size_t count) {
 
    // Smoothing: parameters reach ~63% of their target in 0.35 s.
@@ -280,7 +356,11 @@ void Synth::render (std::int16_t *out, std::size_t count) {
       // Pause: low-pass and quieter. Master volume grows a little with intensity.
       float alpha = 1.0f + (closed - 1.0f) * m_muffled;
       m_lowPass += alpha * (sample - m_lowPass);
-      float x = m_lowPass * (1.0f - 0.6f * m_muffled) * (0.75f + 0.25f * m_intensity);
+      float x = m_lowPass * (1.0f - 0.6f * m_muffled) * (0.75f + 0.25f * m_intensity)
+                * m_musicVolume;
+
+      // Effects go on top: not filtered, not slowed by the tape stop.
+      x += effectsSample(1.0 / SAMPLE_RATE) * m_effectsVolume;
 
       x = std::tanh(x * 1.2f);   // soft limit instead of clipping
       out[i] = (std::int16_t) (x * 30000);

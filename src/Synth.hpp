@@ -22,7 +22,15 @@
  *
  * Every parameter moves smoothly towards its target, so nothing jumps.
  * No audio device is used here: render() just fills a buffer.
+ *
+ * Sound effects are short pitch slides played on top of the music, with
+ * their own volume; they are not muffled and not slowed by a tape stop.
  */
+
+enum SoundEffect {
+   SFX_COIN, SFX_POTION, SFX_MONSTER, SFX_CAUGHT, SFX_LEVEL,
+   SFX_MENU_MOVE, SFX_MENU_CHOOSE
+};
 
 struct Note {
    double start;      // seconds
@@ -65,9 +73,34 @@ public:
    void tapeStop () { m_stopping = true; }
    void resume ()   { m_stopping = false; }
 
+   // Volumes from 0 to 1.
+   void setMusicVolume   (float v) { m_musicVolume = v; }
+   void setEffectsVolume (float v) { m_effectsVolume = v; }
+
+   void playEffect (SoundEffect effect);
+
    void render (std::int16_t *out, std::size_t count);
 
+   // A piece of a sound effect: a slide from one pitch to another.
+   enum Wave { SQUARE, THIN_PULSE, TRIANGLE };
+   struct Slide {
+      float from, to;     // Hz
+      float length;       // seconds
+      Wave  wave;
+      float gain;
+   };
+
 private:
+   struct Effect {
+      const std::vector<Slide> *slides;
+      std::size_t index {0};
+      double time {0};             // within the current slide
+      double phase {0};
+   };
+   std::vector<Effect> m_effects;
+   float m_musicVolume {1}, m_effectsVolume {1};
+
+   float effectsSample (double dt);
    struct Voice {                  // one per part
       std::size_t cursor {0};      // first note that may still sound
       double phase {0};

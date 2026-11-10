@@ -1,10 +1,10 @@
 # Dungeon
 
-A maze-chase game in C++17 and SFML 2: a knight collects the coins of a dungeon while four monsters chase him. Potions make the monsters vulnerable. The music is synthesized at runtime from MIDI files, and grows more intense as the monsters get closer.
+A maze-chase game in C++17 and SFML 2: a knight collects the coins of a dungeon while four monsters chase him. Potions make the monsters vulnerable. The music and sound effects are synthesized at runtime; the music comes from MIDI files and grows more intense as the monsters get closer.
 
 ![Screenshot](docs/screenshot.png)
 
-Arrow keys, WASD or Vim keys (HJKL) move, Esc pauses, Enter picks a menu option. The music volume is set in the menus and saved in `~/.config/dungeon/settings.txt`.
+Arrow keys, WASD or Vim keys (HJKL) move, Esc pauses, Enter picks a menu option. Music and sound volumes are set in the menus; they and the high score are saved in `~/.config/dungeon/settings.txt`.
 
 ## Build
 

@@ -145,21 +145,37 @@ void Game::key (sf::Keyboard::Key k) {
 
    if (inMenu()) {
       int count = (int) menuActions().size();
-      bool onVolume = menuActions()[menuChoice] == CHANGE_VOLUME;
+      int *volume = volumeOf(menuActions()[menuChoice]);
+
+      // Changes a volume by one step; the menu tick plays at the new level.
+      auto nudge = [&](int step) {
+         if (volume == nullptr)
+            return;
+         int changed = std::clamp(*volume + step, 0, MAX_VOLUME);
+         if (changed != *volume) {
+            *volume = changed;
+            events.push_back(MENU_MOVED);
+         }
+      };
+
       switch (k) {
-         case sf::Keyboard::Up:    menuChoice = (menuChoice + count - 1) % count; break;
-         case sf::Keyboard::Down:  menuChoice = (menuChoice + 1) % count; break;
-         case sf::Keyboard::Left:
-            if (onVolume) musicVolume = std::max(0, musicVolume - 1);
+         case sf::Keyboard::Up:
+            menuChoice = (menuChoice + count - 1) % count;
+            events.push_back(MENU_MOVED);
             break;
-         case sf::Keyboard::Right:
-            if (onVolume) musicVolume = std::min(MAX_VOLUME, musicVolume + 1);
+         case sf::Keyboard::Down:
+            menuChoice = (menuChoice + 1) % count;
+            events.push_back(MENU_MOVED);
             break;
+         case sf::Keyboard::Left:  nudge(-1); break;
+         case sf::Keyboard::Right: nudge(+1); break;
          case sf::Keyboard::Enter:
          case sf::Keyboard::Space: chooseMenuOption(); break;
          case sf::Keyboard::Escape:
-            if (stage == PAUSED)
+            if (stage == PAUSED) {
                stage = pausedFrom;
+               events.push_back(MENU_CHOSEN);
+            }
             break;
          default: break;
       }
@@ -175,6 +191,7 @@ void Game::key (sf::Keyboard::Key k) {
          pausedFrom = stage;
          stage = PAUSED;
          menuChoice = 0;
+         events.push_back(MENU_CHOSEN);
          break;
       default:
          break;
@@ -187,20 +204,28 @@ bool Game::inMenu () const {
 
 std::vector<MenuAction> Game::menuActions () const {
    switch (stage) {
-      case MENU:      return {START_GAME, CHANGE_VOLUME, QUIT_GAME};
-      case PAUSED:    return {RESUME_GAME, CHANGE_VOLUME, BACK_TO_TITLE};
+      case MENU:      return {START_GAME, CHANGE_MUSIC, CHANGE_SOUND, QUIT_GAME};
+      case PAUSED:    return {RESUME_GAME, CHANGE_MUSIC, CHANGE_SOUND, BACK_TO_TITLE};
       case GAME_OVER: return {START_GAME, BACK_TO_TITLE};
       default:        return {};
    }
 }
 
+int *Game::volumeOf (MenuAction action) {
+   if (action == CHANGE_MUSIC) return &musicVolume;
+   if (action == CHANGE_SOUND) return &soundVolume;
+   return nullptr;
+}
+
 std::vector<std::string> Game::menuOptions () const {
+   auto percent = [](int v) { return std::to_string(v * 10) + "%"; };
    std::vector<std::string> labels;
    for (MenuAction a: menuActions())
       switch (a) {
          case START_GAME:    labels.push_back(stage == GAME_OVER ? "PLAY AGAIN" : "PLAY"); break;
          case RESUME_GAME:   labels.push_back("RESUME"); break;
-         case CHANGE_VOLUME: labels.push_back("MUSIC " + std::to_string(musicVolume * 10) + "%"); break;
+         case CHANGE_MUSIC:  labels.push_back("MUSIC " + percent(musicVolume)); break;
+         case CHANGE_SOUND:  labels.push_back("SOUND " + percent(soundVolume)); break;
          case BACK_TO_TITLE: labels.push_back("MAIN MENU"); break;
          case QUIT_GAME:     labels.push_back("QUIT"); break;
       }
@@ -211,19 +236,21 @@ void Game::chooseMenuOption () {
 
    MenuAction action = menuActions()[menuChoice];
 
-   // Enter on the volume steps it up (and around), keeping the selection.
-   if (action == CHANGE_VOLUME) {
-      musicVolume = (musicVolume + 1) % (MAX_VOLUME + 1);
+   // Enter on a volume steps it up (and around), keeping the selection.
+   if (int *volume = volumeOf(action)) {
+      *volume = (*volume + 1) % (MAX_VOLUME + 1);
+      events.push_back(MENU_MOVED);
       return;
    }
 
+   events.push_back(MENU_CHOSEN);
    menuChoice = 0;
    switch (action) {
       case START_GAME:    newGame(); break;
       case RESUME_GAME:   stage = pausedFrom; break;
       case BACK_TO_TITLE: showMenu(); break;
       case QUIT_GAME:     quitRequested = true; break;
-      case CHANGE_VOLUME: break;
+      default:            break;
    }
 }
 
@@ -300,6 +327,7 @@ void Game::playFrame (float dt) {
    eatItem();
 
    if (maze.itemsLeft() == 0) {
+      events.push_back(LEVEL_CLEARED);
       stage = LEVEL_CLEAR;
       pause = LEVEL_CLEAR_PAUSE;
       return;
@@ -367,11 +395,14 @@ void Game::eatItem () {
 
    maze.removeItem(col, row);
 
-   if (item == COIN)
+   if (item == COIN) {
       score += COIN_POINTS;
+      events.push_back(COIN_EATEN);
+   }
 
    if (item == POTION) {
       score += POTION_POINTS;
+      events.push_back(POTION_TAKEN);
       frightenedTime = potionDuration();
       eatenThisPotion = 0;
       for (auto &m: monsters) {
@@ -467,12 +498,14 @@ void Game::checkEncounters () {
          // Ate the monster: points double each time, and it goes back to the pen.
          score += FIRST_MONSTER_POINTS << eatenThisPotion;
          ++eatenThisPotion;
+         events.push_back(MONSTER_EATEN);
          m.frightened = false;
          m.actor.placeAt(maze.pen[maze.pen.size() / 2]);
          m.state = IN_PEN;
          m.wait = WAIT_AFTER_EATEN;
       } else {
          --lives;
+         events.push_back(HERO_CAUGHT);
          stage = CAUGHT;
          pause = CAUGHT_PAUSE;
          return;

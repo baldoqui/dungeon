@@ -19,7 +19,7 @@ bool Music::load (const std::string &folder) {
 
 void Music::start () {
    if (getStatus() != Playing)
-      play();
+      sf::SoundStream::play();
 }
 
 void Music::menu () {
@@ -56,9 +56,19 @@ void Music::setDanger (float danger) {
       m_synth.setIntensity(danger);
 }
 
-void Music::setVolume (float volume) {
-   // SFML volume is a percentage; no lock needed, it goes to OpenAL directly.
-   sf::SoundStream::setVolume(100 * volume);
+void Music::setMusicVolume (float volume) {
+   std::lock_guard<std::mutex> guard(m_lock);
+   m_synth.setMusicVolume(volume);
+}
+
+void Music::setSoundVolume (float volume) {
+   std::lock_guard<std::mutex> guard(m_lock);
+   m_synth.setEffectsVolume(volume);
+}
+
+void Music::play (SoundEffect effect) {
+   std::lock_guard<std::mutex> guard(m_lock);
+   m_synth.playEffect(effect);
 }
 
 void Music::setPaused (bool paused) {

@@ -20,6 +20,8 @@
  * During a game the music follows the danger (0..1): bass and drums grow
  * as a monster gets closer. Pause muffles it; being caught stops it like a
  * tape, and the next life spins it back up.
+ *
+ * Sound effects go through the same output, with their own volume.
  */
 class Music : private sf::SoundStream {
 public:
@@ -33,7 +35,9 @@ public:
    void gameOver ();
 
    void setDanger (float danger);
-   void setVolume (float volume);   // 0..1
+   void setMusicVolume (float volume);   // 0..1
+   void setSoundVolume (float volume);   // 0..1, sound effects
+   void play (SoundEffect effect);
    void setPaused (bool paused);
    void caught ();      // tape stop
    void resume ();      // after being caught

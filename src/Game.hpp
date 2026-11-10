@@ -19,10 +19,13 @@
  * Score: coin 10, potion 50, frightened monster 200, 400, 800, 1600
  * (doubling for each monster eaten on the same potion).
  *
- * Menus: the title menu (PLAY / MUSIC / QUIT), Esc during a game (RESUME /
- * MUSIC / MAIN MENU) and game over (PLAY AGAIN / MAIN MENU). Up and Down
- * pick an option, Enter or Space confirms it; on MUSIC, Left and Right
- * change the volume and Enter steps it up.
+ * Menus: the title menu (PLAY / MUSIC / SOUND / QUIT), Esc during a game
+ * (RESUME / MUSIC / SOUND / MAIN MENU) and game over (PLAY AGAIN /
+ * MAIN MENU). Up and Down pick an option, Enter or Space confirms it; on
+ * MUSIC and SOUND, Left and Right change the volume and Enter steps it up.
+ *
+ * Sounds: the rules play nothing; they push GameEvents to "events" and
+ * Main.cpp turns them into sound effects.
  */
 
 enum Stage {
@@ -36,10 +39,18 @@ enum Stage {
 };
 
 const int MONSTER_COUNT = 4;
-const int MAX_VOLUME = 10;           // music volume steps (10 = 100%)
+const int MAX_VOLUME = 10;           // volume steps (10 = 100%)
 
 // What a menu option does.
-enum MenuAction { START_GAME, RESUME_GAME, CHANGE_VOLUME, BACK_TO_TITLE, QUIT_GAME };
+enum MenuAction {
+   START_GAME, RESUME_GAME, CHANGE_MUSIC, CHANGE_SOUND, BACK_TO_TITLE, QUIT_GAME
+};
+
+// Something that happened, for the sound effects.
+enum GameEvent {
+   COIN_EATEN, POTION_TAKEN, MONSTER_EATEN, HERO_CAUGHT, LEVEL_CLEARED,
+   MENU_MOVED, MENU_CHOSEN
+};
 
 struct Game {
    Maze maze;
@@ -56,6 +67,10 @@ struct Game {
    int  menuChoice {0};              // selected option in the current menu
    bool quitRequested {false};       // "QUIT" chosen in the title menu
    int  musicVolume {8};             // 0..MAX_VOLUME, changed in the menus
+   int  soundVolume {8};             // 0..MAX_VOLUME, sound effects
+
+   // Events since the last time someone cleared this list.
+   std::vector<GameEvent> events;
 
    int score     {0};
    int highScore {0};
@@ -92,6 +107,7 @@ struct Game {
 
 private:
    void chooseMenuOption ();
+   int *volumeOf (MenuAction action);   // nullptr if not a volume option
    void startLife ();                // hero and monsters back at the start
    void playFrame (float dt);
    void moveHero (float dt);

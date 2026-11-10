@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include "Game.hpp"
 
 namespace {
@@ -114,7 +116,7 @@ TEST_F(GameTest, WasdAndVimKeysWorkAsArrows) {
    // Also in the menus.
    game.showMenu();
    game.key(sf::Keyboard::J);   // down to MUSIC
-   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_VOLUME);
+   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_MUSIC);
    int volume = game.musicVolume;
    game.key(sf::Keyboard::A);
    EXPECT_EQ(game.musicVolume, volume - 1);
@@ -178,6 +180,63 @@ TEST_F(GameTest, NoLivesEndsTheGameAndPlayAgainRestarts) {
 }
 
 
+// --- Events (drive the sound effects) --------------------------------------
+
+static int count (const std::vector<GameEvent> &events, GameEvent e) {
+   return (int) std::count(events.begin(), events.end(), e);
+}
+
+TEST_F(GameTest, EventsForCoinsPotionsAndMonsters) {
+   lockMonsters();
+   game.events.clear();
+   run(0.6f);   // heading left along a corridor of coins
+   EXPECT_GE(count(game.events, COIN_EATEN), 2);
+
+   game.events.clear();
+   game.hero.placeAt(Vector2D(1, 1));   // on a potion
+   game.update(FRAME);
+   EXPECT_EQ(count(game.events, POTION_TAKEN), 1);
+
+   Monster &m = game.monsters[AMBUSHER];
+   m.state = ROAMING;
+   m.actor.placeAt(game.hero.npc.body.position);
+   game.update(FRAME);
+   EXPECT_EQ(count(game.events, MONSTER_EATEN), 1);
+}
+
+TEST_F(GameTest, EventWhenCaught) {
+   game.events.clear();
+   game.monsters[BRUTE].actor.placeAt(game.hero.npc.body.position);
+   game.update(FRAME);
+   EXPECT_EQ(count(game.events, HERO_CAUGHT), 1);
+}
+
+TEST_F(GameTest, EventsInTheMenus) {
+   game.showMenu();
+   game.musicVolume = 5;
+   game.events.clear();
+   game.key(sf::Keyboard::Down);    // to MUSIC
+   game.key(sf::Keyboard::Right);   // 50% -> 60%
+   game.key(sf::Keyboard::Up);      // back to PLAY
+   game.key(sf::Keyboard::Enter);
+   EXPECT_EQ(count(game.events, MENU_MOVED), 3);
+   EXPECT_EQ(count(game.events, MENU_CHOSEN), 1);
+}
+
+TEST_F(GameTest, SoundVolumeIsItsOwnOption) {
+   game.showMenu();
+   game.musicVolume = 5;
+   game.soundVolume = 5;
+   game.key(sf::Keyboard::Down);
+   game.key(sf::Keyboard::Down);   // SOUND
+   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_SOUND);
+   EXPECT_EQ(game.menuOptions()[game.menuChoice], "SOUND 50%");
+   game.key(sf::Keyboard::Right);
+   EXPECT_EQ(game.soundVolume, 6);
+   EXPECT_EQ(game.musicVolume, 5);
+}
+
+
 // --- Danger (drives the music) ---------------------------------------------
 
 TEST_F(GameTest, DangerFollowsTheNearestMonster) {
@@ -222,7 +281,7 @@ TEST_F(GameTest, NoDangerOutsidePlaying) {
 TEST_F(GameTest, TitleMenuPlaysOrQuits) {
    game.showMenu();
    EXPECT_EQ(game.stage, MENU);
-   ASSERT_EQ(game.menuOptions().size(), 3u);
+   ASSERT_EQ(game.menuOptions().size(), 4u);
    run(1.0f);   // nothing moves behind the menu
    EXPECT_EQ(game.stage, MENU);
 
@@ -242,7 +301,7 @@ TEST_F(GameTest, MusicVolumeChangesInTheMenu) {
    game.showMenu();
    game.musicVolume = 8;
    game.key(sf::Keyboard::Down);   // MUSIC
-   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_VOLUME);
+   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_MUSIC);
    EXPECT_EQ(game.menuOptions()[game.menuChoice], "MUSIC 80%");
 
    game.key(sf::Keyboard::Left);
@@ -253,7 +312,7 @@ TEST_F(GameTest, MusicVolumeChangesInTheMenu) {
    // Enter steps it up and wraps around, without leaving the option.
    game.key(sf::Keyboard::Enter);
    EXPECT_EQ(game.musicVolume, 0);
-   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_VOLUME);
+   EXPECT_EQ(game.menuActions()[game.menuChoice], CHANGE_MUSIC);
    EXPECT_EQ(game.stage, MENU);
 
    // Left/Right do nothing on other options.
@@ -284,7 +343,7 @@ TEST_F(GameTest, EscPausesAndResumes) {
 TEST_F(GameTest, PauseMenuCanGoBackToTitle) {
    game.score = 120;
    game.key(sf::Keyboard::Escape);
-   EXPECT_EQ(game.menuOptions()[2], "MAIN MENU");
+   EXPECT_EQ(game.menuOptions()[3], "MAIN MENU");
    game.key(sf::Keyboard::Up);   // wraps around to MAIN MENU
    game.key(sf::Keyboard::Enter);
    EXPECT_EQ(game.stage, MENU);

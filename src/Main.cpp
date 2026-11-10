@@ -52,16 +52,34 @@ static void loadSettings (Game &game) {
    std::ifstream in(settingsFile());
    std::string key;
    int value;
-   while (in >> key >> value)
-      if (key == "music_volume")
-         game.musicVolume = std::clamp(value, 0, MAX_VOLUME);
+   while (in >> key >> value) {
+      if (key == "music_volume") game.musicVolume = std::clamp(value, 0, MAX_VOLUME);
+      if (key == "sound_volume") game.soundVolume = std::clamp(value, 0, MAX_VOLUME);
+      if (key == "high_score")   game.highScore   = std::max(value, 0);
+   }
 }
 
 static void saveSettings (const Game &game) {
    std::error_code ignored;
    std::filesystem::create_directories(settingsFile().parent_path(), ignored);
    std::ofstream out(settingsFile());
-   out << "music_volume " << game.musicVolume << "\n";
+   out << "music_volume " << game.musicVolume << "\n"
+       << "sound_volume " << game.soundVolume << "\n"
+       << "high_score "   << game.highScore   << "\n";
+}
+
+// The sound for each thing that happens in the game.
+static SoundEffect soundFor (GameEvent e) {
+   switch (e) {
+      case COIN_EATEN:    return SFX_COIN;
+      case POTION_TAKEN:  return SFX_POTION;
+      case MONSTER_EATEN: return SFX_MONSTER;
+      case HERO_CAUGHT:   return SFX_CAUGHT;
+      case LEVEL_CLEARED: return SFX_LEVEL;
+      case MENU_MOVED:    return SFX_MENU_MOVE;
+      case MENU_CHOSEN:   return SFX_MENU_CHOOSE;
+   }
+   return SFX_MENU_MOVE;
 }
 
 
@@ -72,9 +90,10 @@ static Screen::Menu menuFor (const Game &game) {
    menu.options  = game.menuOptions();
    menu.selected = game.menuChoice;
 
-   // Arrows around the volume while it is selected: Left/Right change it.
+   // Arrows around a volume while it is selected: Left/Right change it.
    auto actions = game.menuActions();
-   if (menu.selected < (int) actions.size() && actions[menu.selected] == CHANGE_VOLUME)
+   if (menu.selected < (int) actions.size() &&
+       (actions[menu.selected] == CHANGE_MUSIC || actions[menu.selected] == CHANGE_SOUND))
       menu.options[menu.selected] = "< " + menu.options[menu.selected] + " >";
 
    switch (game.stage) {
@@ -138,15 +157,31 @@ int main () {
    if (!hasMusic)
       std::cerr << "Could not load the songs; playing without music.\n";
 
-   // Volume from the menus: applied right away, saved for next time.
-   int appliedVolume = game.musicVolume;
-   music.setVolume ((float) game.musicVolume / MAX_VOLUME);
-   auto followVolume = [&]() {
-      if (game.musicVolume == appliedVolume)
-         return;
-      appliedVolume = game.musicVolume;
-      music.setVolume ((float) game.musicVolume / MAX_VOLUME);
-      saveSettings (game);
+   // Volumes and high score: applied right away, saved for next time.
+   int savedMusic = -1, savedSound = -1, savedHigh = game.highScore;
+   auto followSettings = [&]() {
+      if (game.musicVolume != savedMusic || game.soundVolume != savedSound) {
+         music.setMusicVolume ((float) game.musicVolume / MAX_VOLUME);
+         music.setSoundVolume ((float) game.soundVolume / MAX_VOLUME);
+         if (savedMusic >= 0)
+            saveSettings (game);
+         savedMusic = game.musicVolume;
+         savedSound = game.soundVolume;
+      }
+      // The high score is saved when a game ends or is left, not every frame.
+      if (game.highScore != savedHigh && game.stage != PLAYING) {
+         saveSettings (game);
+         savedHigh = game.highScore;
+      }
+   };
+   followSettings();
+
+   // Sound effects for what just happened.
+   auto playEvents = [&]() {
+      if (hasMusic)
+         for (GameEvent e: game.events)
+            music.play (soundFor(e));
+      game.events.clear();
    };
 
    // Stage changes come from keys (menus) and from the game itself.
@@ -160,7 +195,8 @@ int main () {
    screen.onKey ([&](sf::Keyboard::Key k) {
       game.key(k);
       followGame();
-      followVolume();
+      followSettings();
+      playEvents();
       if (game.quitRequested)
          screen.close();
    });
@@ -170,6 +206,8 @@ int main () {
       // everyone jump several tiles at once.
       game.update (std::min(dt, 0.05f));
       followGame();
+      followSettings();
+      playEvents();
       if (hasMusic)
          music.setDanger (game.danger);
 
@@ -200,5 +238,9 @@ int main () {
    screen.setLifeIcon (TILES "knight.png");
 
    screen.run();
+
+   // Closing the window in the middle of a game keeps the high score too.
+   if (game.highScore != savedHigh)
+      saveSettings (game);
    return 0;
 }

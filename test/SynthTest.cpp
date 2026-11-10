@@ -130,6 +130,31 @@ TEST(Synth, MuffledIsQuieter) {
    EXPECT_LT(b, a * 0.5);
 }
 
+TEST(Synth, EffectsPlayWithoutMusicAndEnd) {
+   Synth synth;   // no song
+   synth.playEffect(SFX_POTION);
+   auto out = render(synth, 0.5);
+   EXPECT_GT(energy(out, 0, RATE / 4), 0);              // 4 notes, 0.3 s
+   EXPECT_EQ(energy(out, RATE * 2 / 5, RATE / 2), 0);   // and then silence
+}
+
+TEST(Synth, EffectsHaveTheirOwnVolumeAndAreNotMuffled) {
+   auto effectEnergy = [](float effects, float music, bool muffled) {
+      Synth s;
+      s.setMusicVolume(music);
+      s.setEffectsVolume(effects);
+      s.setMuffled(muffled);
+      std::vector<std::int16_t> warm(RATE);
+      s.render(warm.data(), warm.size());   // let the muffling settle
+      s.playEffect(SFX_CAUGHT);
+      return energy(render(s, 0.5), 0, RATE / 2);
+   };
+   double normal = effectEnergy(1, 1, false);
+   EXPECT_GT(normal, 0);
+   EXPECT_EQ(effectEnergy(0, 1, false), 0);                 // effects muted
+   EXPECT_NEAR(effectEnergy(1, 0, true), normal, normal * 0.01);   // music off, paused
+}
+
 TEST(Synth, SongWithoutLoopFinishes) {
    Song song = oneNote(LEAD, 60);
    Synth synth;
